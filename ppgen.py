@@ -3859,6 +3859,11 @@ class Ppt(Book):
       self.wb[i] = re.sub(r"<abbr[^>]*>","",self.wb[i])
       self.wb[i] = re.sub(r"</abbr>","",self.wb[i])
 
+    # Remove inline <span>
+    for i in range(len(self.wb)):
+      self.wb[i] = re.sub(r"<span[^>]*>","",self.wb[i])
+      self.wb[i] = re.sub(r"</span>","",self.wb[i])
+
     # - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - - -
     # look for <b>
     # after text generation look for <b> + "="
@@ -7902,6 +7907,12 @@ class Pph(Book):
         my_cj = cj[0]
       ia["cj"] = my_cj
 
+      # caption placement; (t)op, (b)ottom
+      cp = "b"
+      if "cp=" in s:
+        s, cp = self.get_id("cp",s)
+      ia["cp"] = cp
+
       # user-requested id
       iid = ""
       if "id=" in s:
@@ -8108,7 +8119,8 @@ class Pph(Book):
 
     # is the .il line followed by a caption line?
     if caption_present:
-      u.append("<div class='{}'>".format(icn))
+      c = []
+      c.append("<div class='{}'>".format(icn))
       if self.wb[self.cl+1] == ".ca": # multiline
         rep += 1
         j = 2
@@ -8126,8 +8138,17 @@ class Pph(Book):
       else: # single line
         caption = self.wb[self.cl+1][4:]
         rep += 1
-      u.append("<p>{}</p>".format(caption))
-      u.append("</div>")
+      c.append("<p>{}</p>".format(caption))
+      c.append("</div>")
+
+      # insert caption block into illustration div
+      if ia["cp"] == 'b': # insert after image (bottom)
+        u = u + c
+      elif ia["cp"] == 't': # insert before image (top)
+        u[1:1] = c
+      else:
+        self.fatal("invalid cp parameter: cp=\"{}\"".format(ia["cp"]))
+
     u.append("</div>") # the entire illustration div
 
     # replace with completed HTML
