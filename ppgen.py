@@ -44,9 +44,9 @@ VERSION="3.53c9"    # 08-Nov-2015
 #3.53c5:
 #  Fix error in wrapping a paragraph that contains a .bn directive (text version only)
 #3.53c6:
-#  Fix .sr error resulting in no changes when processing search strings containing \n 
+#  Fix .sr error resulting in no changes when processing search strings containing \n
 #3.53c7:
-#  Change px specifications on borders to "thin". 
+#  Change px specifications on borders to "thin".
 #  Change padding on .pageno to use "em" rather than "px".
 #  Implement new named register, pnstyle, with values of title or content, to control
 #    how the page numbers are generated and provide workaround for CSS validator bug.
@@ -1612,6 +1612,7 @@ class Book(object):
       ".h6" :  (self.doH6, None),
       ".sp" :  (self.doSpace, None),
       ".fs" :  (self.doFontSize, None),
+      ".ic" :  (self.doIc, None),
       ".il" :  (self.doIllo, None),
       ".in" :  (self.doIn, None),
       ".ix" :  (self.doIx, None),
@@ -1653,6 +1654,7 @@ class Book(object):
       ".h6" :  (self.rejectWithinList, None),
       ".sp" :  (self.doSpace, None),
       ".fs" :  (self.doFontSize, None),
+      ".ic" :  (self.doIc, None),
       ".il" :  (self.doIllo, None),
       ".in" :  (self.doIn, None),
       ".ix" :  (self.doIx, None),
@@ -4504,6 +4506,12 @@ class Ppt(Book):
   def doFontSize(self):
     del self.wb[self.cl]
 
+  # .ic
+  # Container for inline-block elements
+  # no effect in text
+  def doIc(self):
+    del self.wb[self.cl]
+
   # .il illustrations (text)
   def doIllo(self):
 
@@ -7130,7 +7138,7 @@ class Pph(Book):
       elif self.nregs["pnstyle"] != "content":
         self.warn("Invalid .nr pnstyle value {}; content assumed".format(self.nregs["pnstyle"]))
         self.nregs["pnstyle"] = "content"
-        
+
     else:
       self.css.addcss("[1100] body { margin-left: 8%; margin-right: 8%; }")
 
@@ -7808,6 +7816,19 @@ class Pph(Book):
       self.crash_w_context("malformed .fs directive", self.cl)
     del self.wb[self.cl]
 
+  # .ic
+  # Container for inline-block elements
+  def doIc(self):
+    if ".ic" == self.wb[self.cl]: # opening tag
+      self.css.addcss("[620] div.inlinecontainer { clear: both; margin: 0em auto; text-align: center; max-width: 100%; }")
+      self.wb[self.cl] = "<div class='inlinecontainer'>"
+      self.cl += 1
+    elif ".ic-" == self.wb[self.cl]: # closing tag
+      self.wb[self.cl] = "</div>"
+      self.cl += 1
+    else:
+      self.fatal("inline container directive error: {}".format(self.wb[self.cl]))
+
   # .il illustrations
   # .il id=i01 fn=illus-fpc.jpg w=332 alt=illus-fpcf.jpg
   # .ca Dick was taken by surprise.
@@ -7988,6 +8009,16 @@ class Pph(Book):
       self.css.addcss("[1602] @media handheld { .figright { float: right; }}")
       self.css.addcss("[1608] .figright img { max-width: 100%; height: auto; }")
 
+    if ia["align"] == "i":
+      self.css.addcss("[1600] .figinline { display:inline-block; vertical-align:middle; max-width:100%; margin:1em; text-align: center;}")
+      if caption_present:
+          self.css.addcss("[1601] div.figinline p { text-align:center; text-indent:0; }")
+# Tested inline-block on ADE, Kindle Preview, iBooks - seems to work as long as block does not extend beyond screen or it gets truncated
+#      self.css.addcss("[602] @media handheld { .figinline { display:block; }}")
+
+    # if any image is in document
+    self.css.addcss("[1608] img { max-width:100%; height:auto; }")
+
     # make CSS names from igc counter
     idn = "id{:03d}".format(self.igc)
     ign = "ig{:03d}".format(self.igc)
@@ -8103,6 +8134,8 @@ class Pph(Book):
       u.append("<div {} class='figleft {}'>".format(ia["id"], idn))
     if ia["align"] == "r":
       u.append("<div {} class='figright {}'>".format(ia["id"], idn))
+    if ia["align"] == "i":
+      u.append("<div {} class='figinline {}'>".format(ia["id"], idn))
 
     if ia["pageno"] != "":
       if self.nregs["pnstyle"] == "title":
